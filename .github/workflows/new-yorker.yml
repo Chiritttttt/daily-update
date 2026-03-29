@@ -18,27 +18,20 @@ jobs:
 
       - name: Get latest EPUB and PDF
         run: |
-          git clone --filter=blob:none --no-checkout --depth=1 \
-            https://github.com/Monkfishare/New_Yorker.git temp-repo
-          cd temp-repo
-          git sparse-checkout init --cone
-          git sparse-checkout set NY
-          git checkout main
-          cd ..
+          API_URL="https://api.github.com/repos/Monkfishare/New_Yorker/git/trees/main?recursive=1"
+          FILES=$(curl -s "$API_URL" | jq -r '.tree[].path' | grep "^NY/")
 
-          LATEST_EPUB=$(find temp-repo/NY -name "*.epub" -type f | sort | tail -1)
-          LATEST_PDF=$(find temp-repo/NY -name "*.pdf" -type f | sort | tail -1)
+          LATEST_EPUB=$(echo "$FILES" | grep "\.epub$" | sort | tail -1)
+          LATEST_PDF=$(echo "$FILES" | grep "\.pdf$" | sort | tail -1)
 
           for FILE in "$LATEST_EPUB" "$LATEST_PDF"; do
             if [ -n "$FILE" ]; then
-              rel="${FILE#temp-repo/}"
-              mkdir -p "$(dirname "$rel")"
-              cp -n "$FILE" "$rel"
-              echo "Copied: $rel"
+              mkdir -p "$(dirname "$FILE")"
+              curl -L -o "$FILE" \
+                "https://raw.githubusercontent.com/Monkfishare/New_Yorker/main/$FILE"
+              echo "Downloaded: $FILE"
             fi
           done
-
-          rm -rf temp-repo
 
       - name: Commit and push
         run: |
