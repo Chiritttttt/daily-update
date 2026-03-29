@@ -1,0 +1,77 @@
+name: Sync New Yorker
+on:
+  schedule:
+    - cron: '0 8 * * 6'  # 每周六北京时间16点运行（周刊）
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone source repo
+        run: |
+          git clone --depth=1 https://github.com/Monkfishare/New_Yorker.git temp-repo
+
+      - name: Copy latest EPUB and PDF
+        run: |
+          # 找最新epub
+          LATEST_EPUB=$(find temp-repo/NY -name "*.epub" -type f | sort | tail -1)
+          # 找最新pdf
+          LATEST_PDF=$(find temp-repo/NY -name "*.pdf" -type f | sort | tail -1)
+
+          for FILE in "$LATEST_EPUB" "$LATEST_PDF"; do
+            if [ -n "$FILE" ]; then
+              rel="${FILE#temp-repo/}"
+              mkdir -p "$(dirname "$rel")"
+              cp -n "$FILE" "$rel"
+              echo "Copied: $rel"
+            fi
+          done
+
+          rm -rf temp-repo
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          if git diff --cached --quiet; then
+            echo "No new files to commit."
+          else
+            git commit -m "Sync New Yorker $(date -u '+%Y-%m-%d')"
+            git push
+          fi
+
+      - name: Get new files
+        id: get_files
+        run: |
+          NEW_FILES=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E "\.(epub|pdf)$" || echo "")
+          if [ -z "$NEW_FILES" ]; then
+            echo "has_new=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_new=true" >> $GITHUB_OUTPUT
+            ATTACHMENTS=$(echo "$NEW_FILES" | tr '\n' ',' | sed 's/,$//')
+            echo "attachments=$ATTACHMENTS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send email via QQ
+        if: steps.get_files.outputs.has_new == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.qq.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "The New Yorker - $(date -u '+%Y-%m-%d')"
+          to: ${{ secrets.MAIL_USER }}
+          from: ${{ secrets.MAIL_USER }}
+          body: "本周新刊已送达，请查收附件（epub + pdf）。"
+          attachments: ${{ steps.get_files.outputs.attachments }}
