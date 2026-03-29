@@ -15,15 +15,19 @@ jobs:
 
       - name: Clone source repo
         run: |
-          git clone https://github.com/Monkfishare/Economist_Espresso.git temp-repo
+          git clone --depth=1 https://github.com/Monkfishare/Economist_Espresso.git temp-repo
 
-      - name: Copy only new PDF files
+      - name: Copy only latest PDF file
         run: |
-          find temp-repo -name "*.pdf" -type f | while read file; do
-            rel="${file#temp-repo/}"
-            mkdir -p "$(dirname "$rel")"
-            cp -n "$file" "$rel"
-          done
+          LATEST=$(find temp-repo -name "*.pdf" -type f | sort | tail -1)
+          if [ -z "$LATEST" ]; then
+            echo "No PDF found."
+            exit 0
+          fi
+          rel="${LATEST#temp-repo/}"
+          mkdir -p "$(dirname "$rel")"
+          cp -n "$LATEST" "$rel"
+          echo "Copied: $rel"
           rm -rf temp-repo
 
       - name: Commit and push new files
@@ -46,7 +50,6 @@ jobs:
             echo "has_new=false" >> $GITHUB_OUTPUT
           else
             echo "has_new=true" >> $GITHUB_OUTPUT
-            # Join filenames with comma for attachment
             ATTACHMENTS=$(echo "$NEW_FILES" | tr '\n' ',' | sed 's/,$//')
             echo "attachments=$ATTACHMENTS" >> $GITHUB_OUTPUT
           fi
