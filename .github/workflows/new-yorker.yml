@@ -16,15 +16,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Clone source repo
+      - name: Get latest EPUB and PDF
         run: |
-          git clone --depth=1 https://github.com/Monkfishare/New_Yorker.git temp-repo
+          git clone --filter=blob:none --no-checkout --depth=1 \
+            https://github.com/Monkfishare/New_Yorker.git temp-repo
+          cd temp-repo
+          git sparse-checkout init --cone
+          git sparse-checkout set NY
+          git checkout main
+          cd ..
 
-      - name: Copy latest EPUB and PDF
-        run: |
-          # 找最新epub
           LATEST_EPUB=$(find temp-repo/NY -name "*.epub" -type f | sort | tail -1)
-          # 找最新pdf
           LATEST_PDF=$(find temp-repo/NY -name "*.pdf" -type f | sort | tail -1)
 
           for FILE in "$LATEST_EPUB" "$LATEST_PDF"; do
