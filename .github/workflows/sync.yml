@@ -1,9 +1,8 @@
 name: Sync Economist Espresso
 on:
   schedule:
-    - cron: '0 8 * * *'  # 每天北京时间16点自动运行
+    - cron: '0 */8 * * *'  # 每8小时运行一次（UTC 0/8/16点），对应北京时间 8/16/0点
   workflow_dispatch:
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
@@ -14,11 +13,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Clone source repo
         run: |
           git clone --depth=1 https://github.com/Monkfishare/Economist_Espresso.git temp-repo
-
       - name: Copy only latest PDF file
         run: |
           LATEST=$(find temp-repo -name "*.pdf" -type f | sort | tail -1)
@@ -31,7 +28,6 @@ jobs:
           cp -n "$LATEST" "$rel"
           echo "Copied: $rel"
           rm -rf temp-repo
-
       - name: Commit and push new files
         run: |
           git config --local user.email "action@github.com"
@@ -40,10 +36,9 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new files to commit."
           else
-            git commit -m "Sync Espresso PDFs $(date -u '+%Y-%m-%d')"
+            git commit -m "Sync Espresso PDFs $(date -u '+%Y-%m-%d %H:%M')"
             git push
           fi
-
       - name: Get new PDF files
         id: get_pdfs
         run: |
@@ -55,7 +50,6 @@ jobs:
             ATTACHMENTS=$(echo "$NEW_FILES" | tr '\n' ',' | sed 's/,$//')
             echo "attachments=$ATTACHMENTS" >> $GITHUB_OUTPUT
           fi
-
       - name: Send email via QQ
         if: steps.get_pdfs.outputs.has_new == 'true'
         uses: dawidd6/action-send-mail@v3
@@ -64,7 +58,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Economist Espresso - $(date -u '+%Y-%m-%d')"
+          subject: "Economist Espresso - $(date -u '+%Y-%m-%d %H:%M') UTC"
           to: ${{ secrets.MAIL_USER }}
           from: ${{ secrets.MAIL_USER }}
           body: "今日新刊已送达，请查收附件。"
